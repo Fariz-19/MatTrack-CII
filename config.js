@@ -3,7 +3,7 @@
 // ==========================================================
 
 const SUPABASE_CONFIG = {
-  DEFAULT_URL: 'https://uwzhnzzpoprejcrbglxu.supabase.co',
+  DEFAULT_URL: 'uwzhnzzpoprejcrbglxu.supabase.co',
 
   DEFAULT_ANON_KEY: 'sb_publishable_Fm9-W8tP7inInV5SYC2r9g_yFpX23Pc',
 
