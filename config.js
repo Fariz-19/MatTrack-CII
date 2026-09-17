@@ -15,16 +15,9 @@ const SUPABASE_CONFIG = {
 };
 
 function getActiveSupabaseConfig() {
-
-  const storedUrl =
-    localStorage.getItem(SUPABASE_CONFIG.STORAGE_KEY_URL) || '';
-
-  const storedKey =
-    localStorage.getItem(SUPABASE_CONFIG.STORAGE_KEY_KEY) || '';
-
   return {
-    url: storedUrl.trim() || SUPABASE_CONFIG.DEFAULT_URL,
-    anonKey: storedKey.trim() || SUPABASE_CONFIG.DEFAULT_ANON_KEY
+    url: SUPABASE_CONFIG.DEFAULT_URL,
+    anonKey: SUPABASE_CONFIG.DEFAULT_ANON_KEY
   };
 }
 
