@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Material Tracking System</title>
+    <meta name="description" content="Tracking penerimaan dan pengembalian material antar stock control area terintegrasi Supabase" />
+    <meta property="og:title" content="Material Tracking System" />
+    <meta property="og:description" content="Tracking penerimaan dan pengembalian material antar stock control area terintegrasi Supabase" />
+    <meta property="og:type" content="website" />
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Supabase JS CDN (Murni Client-Side, tanpa Node/bundler) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+    <!-- ===================================================== -->
+    <!-- 1. HALAMAN LOGIN (Tampil jika belum login)             -->
+    <!-- ===================================================== -->
+    <div id="login-section" class="flex-1 flex items-center justify-center p-4">
+      <div class="max-w-md w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+        <div class="flex items-center space-x-3 mb-6">
+          <div class="w-12 h-12 rounded-xl bg-sky-600 flex items-center justify-center text-white font-bold text-xl shadow-sm">
+            📦
+          </div>
+          <div>
+            <h1 class="text-xl font-bold text-slate-900 leading-tight">Material Tracking</h1>
+            <p class="text-xs text-slate-500">Stock Control Area & Supabase Sync</p>
+          </div>
+        </div>
+
+        <div class="mb-5 p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+          <div class="flex items-center space-x-2">
+            <span id="db-status-badge" class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+            <span id="db-status-text" class="font-medium text-slate-700">Mengecek Database...</span>
+          </div>
+          <button id="btn-login-open-config" class="text-sky-600 hover:text-sky-700 font-semibold underline cursor-pointer">
+            Pengaturan Supabase
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <!-- Info Syarat Bertransaksi -->
+          <div class="p-3 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-800 leading-relaxed">
+            <div class="font-bold flex items-center gap-1.5 mb-1 text-sky-900">
+              <span class="text-sm">🔐</span> Syarat Bertransaksi: Otentikasi Petugas
+            </div>
+            <div>
+              Wajib masuk dengan <b>User ID Statis</b> yang terdaftar di tabel <code>users</code> agar setiap mutasi & transfer material tercatat atas nama penanggung jawab yang sah.
+            </div>
+          </div>
+
+          <!-- Input ID Pengguna Statis -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="login-user-id" class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                ID Pengguna (Tabel Users) *
+              </label>
+              <span class="text-[11px] text-slate-400 font-medium">Kerahasiaan Petugas</span>
+            </div>
+            <div class="relative">
+              <input
+                type="text"
+                id="login-user-id"
+                placeholder="Ketik User ID Terdaftar Anda..."
+                autocomplete="off"
+                class="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 font-mono font-semibold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+              />
+            </div>
+            <div id="login-user-verified-preview" class="mt-1.5 text-xs text-slate-500 min-h-[18px]">
+              Masukkan User ID pribadi yang telah didaftarkan oleh administrator pada database.
+            </div>
+          </div>
+
+          <!-- Pesan Error Validasi Login -->
+          <div id="login-error-msg" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-start space-x-2">
+            <span class="text-base leading-none">⚠️</span>
+            <span id="login-error-text">ID Pengguna tidak terdaftar di sistem!</span>
+          </div>
+
+          <button id="btn-login" class="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white font-semibold rounded-lg text-sm transition shadow-sm cursor-pointer flex items-center justify-center space-x-2">
+            <span>Masuk & Verifikasi Petugas</span>
+            <span>➔</span>
+          </button>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-slate-100 text-center text-xs text-slate-500">
+          Versi Murni HTML, CSS, & Vanilla JS • Siap Deploy di GitHub Pages
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- 2. APLIKASI UTAMA (Tampil setelah login)              -->
+    <!-- ===================================================== -->
+    <div id="main-app-section" class="flex-1 flex flex-col hidden">
+      <!-- Navbar Header -->
+      <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between h-16">
+            
+            <!-- Logo & Brand -->
+            <div class="flex items-center space-x-3">
+              <div class="w-9 h-9 rounded-lg bg-sky-600 flex items-center justify-center text-white font-bold text-lg">
+                📦
+              </div>
+              <div>
+                <div class="text-base font-bold text-slate-900 leading-tight">Material Tracking</div>
+                <div class="text-[11px] text-slate-500 font-medium">Stock Control Area Management</div>
+              </div>
+            </div>
+
+            <!-- Nav Items -->
+            <nav class="hidden md:flex items-center space-x-1">
+              <button id="nav-btn-dashboard" class="px-3 py-2 rounded-lg text-sm font-semibold bg-sky-50 text-sky-700 transition cursor-pointer">
+                Dashboard
+              </button>
+              <button id="nav-btn-transaction" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer">
+                Catat Transaksi
+              </button>
+              <button id="nav-btn-stock" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer">
+                Saldo Stok Area
+              </button>
+              <button id="nav-btn-history" class="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer">
+                Riwayat Transaksi
+              </button>
+            </nav>
+
+            <!-- User & Settings Action -->
+            <div class="flex items-center space-x-2 sm:space-x-3">
+              <!-- Indikator Status Koneksi Supabase Interaktif -->
+              <button
+                id="btn-open-config"
+                title="Status Koneksi Supabase (Klik untuk Pengaturan Database)"
+                class="flex items-center space-x-2 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer shadow-2xs bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+              >
+                <!-- Dot status dengan animasi ping jika error / checking -->
+                <span class="relative flex h-2.5 w-2.5 shrink-0">
+                  <span id="nav-db-ping" class="hidden absolute inline-flex h-full w-full rounded-full opacity-75"></span>
+                  <span id="nav-db-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                </span>
+                <span id="nav-db-text" class="hidden sm:inline font-medium">Memeriksa Database...</span>
+                <span id="nav-db-text-mobile" class="inline sm:hidden font-medium">DB</span>
+                <span class="text-slate-400 text-[10px] hidden xs:inline">⚙️</span>
+              </button>
+
+              <!-- User Info Desktop -->
+              <div class="hidden sm:flex items-center space-x-2.5 pl-3 border-l border-slate-200">
+                <div class="w-8 h-8 rounded-full bg-sky-100 border border-sky-200 flex items-center justify-center text-xs font-bold text-sky-800 shrink-0">
+                  👤
+                </div>
+                <div class="text-left text-xs">
+                  <div class="flex items-center space-x-1.5">
+                    <span id="nav-user-name" class="font-bold text-slate-800 truncate max-w-[120px]">Operator</span>
+                    <span id="nav-user-id" class="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">USR001</span>
+                  </div>
+                  <button id="btn-logout" class="text-rose-600 hover:text-rose-700 text-[11px] font-semibold cursor-pointer underline flex items-center space-x-0.5">
+                    <span>Ganti Petugas / Keluar</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- User Info Mobile -->
+              <button id="btn-logout-mobile" class="sm:hidden flex items-center space-x-1 px-2 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-700 cursor-pointer" title="Ganti Petugas">
+                <span>👤</span>
+                <span id="nav-user-id-mobile" class="font-mono font-bold text-sky-700 text-[11px]">USR001</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Alert Banner Status Database / Jaringan Offline (Muncul jika Offline / Gagal Terhubung) -->
+        <div id="nav-offline-banner" class="hidden border-b transition-all">
+          <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex items-center space-x-2 min-w-0">
+              <span id="nav-banner-icon" class="text-base shrink-0">⚠️</span>
+              <span id="nav-banner-message" class="font-medium truncate sm:whitespace-normal">
+                Status koneksi database
+              </span>
+            </div>
+            <div class="flex items-center space-x-2 shrink-0">
+              <button id="btn-banner-retry" class="px-2.5 py-1 bg-white/20 hover:bg-white/30 rounded font-semibold text-[11px] transition cursor-pointer flex items-center space-x-1">
+                <span>🔄</span>
+                <span>Cek Ulang</span>
+              </button>
+              <button id="btn-banner-config" class="px-2.5 py-1 bg-white text-slate-800 hover:bg-slate-100 rounded font-semibold text-[11px] shadow-2xs transition cursor-pointer flex items-center space-x-1">
+                <span>⚙️</span>
+                <span>Pengaturan</span>
+              </button>
+              <button id="btn-banner-dismiss" class="text-white/80 hover:text-white p-1 font-bold cursor-pointer" title="Sembunyikan peringatan">
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mobile Nav Row -->
+        <div class="flex md:hidden border-t border-slate-100 px-4 py-2 space-x-2 overflow-x-auto text-xs bg-slate-50">
+          <button onclick="switchTab('dashboard')" class="px-2.5 py-1.5 font-medium text-slate-700 hover:text-sky-600 whitespace-nowrap cursor-pointer">Dashboard</button>
+          <button onclick="switchTab('transaction')" class="px-2.5 py-1.5 font-medium text-slate-700 hover:text-sky-600 whitespace-nowrap cursor-pointer">Transaksi</button>
+          <button onclick="switchTab('stock')" class="px-2.5 py-1.5 font-medium text-slate-700 hover:text-sky-600 whitespace-nowrap cursor-pointer">Saldo Stok</button>
+          <button onclick="switchTab('history')" class="px-2.5 py-1.5 font-medium text-slate-700 hover:text-sky-600 whitespace-nowrap cursor-pointer">Riwayat</button>
+        </div>
+      </header>
+
+      <!-- Main Content Body -->
+      <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- TAB 1: DASHBOARD -->
+        <section id="tab-dashboard" class="space-y-6">
+          <!-- Stats Cards -->
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+              <div class="text-xs font-medium text-slate-700 uppercase tracking-wider mb-1">Master Material</div>
+              <div id="dash-total-materials" class="text-2xl font-bold text-slate-900">0</div>
+              <div class="text-[11px] text-slate-600 mt-1">Item aktif terdaftar</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+              <div class="text-xs font-medium text-slate-700 uppercase tracking-wider mb-1">Total Saldo Stok</div>
+              <div id="dash-total-stock" class="text-2xl font-bold text-sky-600">0</div>
+              <div class="text-[11px] text-slate-600 mt-1">Akumulasi seluruh area</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+              <div class="text-xs font-medium text-slate-700 uppercase tracking-wider mb-1">Total Transaksi</div>
+              <div id="dash-total-trx" class="text-2xl font-bold text-slate-900">0</div>
+              <div class="text-[11px] text-slate-600 mt-1">Penerimaan & pengembalian</div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-xs">
+              <div class="text-xs font-medium text-slate-700 uppercase tracking-wider mb-1">Stock Control Area</div>
+              <div id="dash-total-areas" class="text-2xl font-bold text-slate-900">0</div>
+              <div class="text-[11px] text-slate-600 mt-1">Gudang & lini produksi</div>
+            </div>
+          </div>
+
+          <!-- Quick Actions & Recent Transactions -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left: Quick Action -->
+            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-xs space-y-4">
+              <h2 class="text-base font-bold text-slate-900">Aksi Cepat</h2>
+              <p class="text-xs text-slate-500">Mulai transaksi perpindahan material atau kelola stok antar area.</p>
+              
+              <div class="space-y-2.5 pt-2">
+                <button onclick="switchTab('transaction')" class="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold transition text-left flex items-center justify-between cursor-pointer">
+                  <span>➕ Catat Transaksi Material</span>
+                  <span>➔</span>
+                </button>
+                <button onclick="switchTab('stock')" class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-sm font-semibold transition text-left flex items-center justify-between cursor-pointer">
+                  <span>📊 Lihat Saldo Stok Area</span>
+                  <span>➔</span>
+                </button>
+                <button onclick="openConfigModal()" class="w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-sm font-medium transition text-left flex items-center justify-between cursor-pointer">
+                  <span>⚙️ Pengaturan Supabase & SQL</span>
+                  <span>➔</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Right: Recent Transaksi -->
+            <div class="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-xs">
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="text-base font-bold text-slate-900">Transaksi Terbaru</h2>
+                <button onclick="switchTab('history')" class="text-xs font-semibold text-sky-600 hover:text-sky-700 cursor-pointer">
+                  Lihat Semua Riwayat ➔
+                </button>
+              </div>
+
+              <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                  <thead>
+                    <tr class="border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                      <th class="py-2.5 px-3">ID TRX</th>
+                      <th class="py-2.5 px-3">Material</th>
+                      <th class="py-2.5 px-3">Qty</th>
+                      <th class="py-2.5 px-3">Alur Area</th>
+                      <th class="py-2.5 px-3">Petugas Transfer</th>
+                      <th class="py-2.5 px-3">Waktu</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dash-recent-trx">
+                    <!-- Diisi otomatis oleh app.js -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 2: CATAT TRANSAKSI -->
+        <section id="tab-transaction" class="max-w-4xl mx-auto bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-xs hidden transition-all">
+          <div class="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Form Catat Transaksi Material</h2>
+              <p class="text-xs text-slate-500">Pencatatan mutasi tunggal maupun transaksi massal (multi-item) antar lini.</p>
+            </div>
+
+            <!-- Switch Mode: Transaksi Tunggal vs Transaksi Massal -->
+            <div class="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold self-start sm:self-auto">
+              <button
+                type="button"
+                id="btn-mode-single"
+                class="px-3.5 py-1.5 rounded-lg bg-white shadow-2xs text-sky-700 font-bold transition cursor-pointer"
+              >
+                ⚡ Transaksi Tunggal
+              </button>
+              <button
+                type="button"
+                id="btn-mode-bulk"
+                class="px-3.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition cursor-pointer flex items-center gap-1.5"
+              >
+                <span>📦</span>
+                <span>Transaksi Massal</span>
+                <span id="bulk-item-counter-badge" class="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-sky-100 text-sky-700">2</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Syarat Bertransaksi: Informasi Petugas Terverifikasi -->
+          <div class="mb-6 p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white text-lg font-bold shadow-2xs shrink-0">
+                👤
+              </div>
+              <div>
+                <div class="text-[11px] uppercase tracking-wider font-semibold text-slate-500">
+                  Petugas Penanggung Jawab (Syarat Transaksi)
+                </div>
+                <div class="flex flex-wrap items-center gap-2 mt-0.5">
+                  <span id="trx-operator-name" class="text-sm font-bold text-slate-900">Budi Santoso</span>
+                  <span id="trx-operator-id" class="px-2 py-0.5 rounded font-mono text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200">USR001</span>
+                  <span class="inline-flex items-center text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">✓ Terdaftar di Tabel Users</span>
+                </div>
+              </div>
+            </div>
+            <button type="button" id="btn-trx-switch-user" class="self-start sm:self-center px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg shadow-2xs transition cursor-pointer flex items-center space-x-1.5">
+              <span>🔄</span>
+              <span>Ganti Petugas</span>
+            </button>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- 1. CONTAINER TRANSAKSI TUNGGAL (SINGLE ITEM)  -->
+          <!-- ============================================== -->
+          <div id="trx-single-container" class="max-w-2xl mx-auto">
+            <div id="trx-feedback" class="mb-4 hidden"></div>
+
+            <form id="trx-form" class="space-y-4">
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Pilih / Cari Material Master *
+                  </label>
+                  <span class="text-[11px] text-sky-600 font-medium">Cari via Nomor/Kode atau Nama Material</span>
+                </div>
+
+                <!-- Input Hidden Menyimpan Kode Material yang Dipilih -->
+                <input type="hidden" id="trx-material" required value="" />
+
+                <!-- Card Tampilan Material Terpilih -->
+                <div id="trx-material-selected-card" class="hidden p-3.5 bg-sky-50 border border-sky-200 rounded-xl relative transition-all">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                        <span id="selected-mat-code" class="px-2 py-0.5 bg-sky-600 text-white font-mono font-bold text-xs rounded">MAT-RAW-001</span>
+                        <span id="selected-mat-category" class="px-2 py-0.5 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded">Raw Material</span>
+                        <span class="text-xs text-slate-500">Satuan: <b id="selected-mat-uom" class="text-slate-800">SHEET</b></span>
+                      </div>
+                      <div id="selected-mat-name" class="font-bold text-slate-900 text-sm truncate">Pelat Baja Stainless 304 2mm</div>
+                      <div id="selected-mat-stock-badge" class="mt-1.5 text-xs text-slate-600 flex items-center gap-1.5">
+                        <!-- Status stok di area asal akan terisi otomatis -->
+                      </div>
+                    </div>
+                    <button type="button" id="btn-change-material" class="shrink-0 px-2.5 py-1.5 text-xs font-semibold text-sky-700 bg-white hover:bg-sky-100 border border-sky-200 rounded-lg shadow-2xs transition cursor-pointer flex items-center space-x-1">
+                      <span>🔍</span>
+                      <span>Ganti / Cari</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Input Pencarian Material Interaktif (Searchable Autocomplete) -->
+                <div id="trx-material-search-container" class="relative">
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    </div>
+                    <input
+                      type="text"
+                      id="trx-material-search-input"
+                      autocomplete="off"
+                      placeholder="Ketik nomor material (misal MAT-001) atau nama material..."
+                      class="w-full pl-9 pr-16 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 placeholder:text-slate-400"
+                    />
+                    <div class="absolute inset-y-0 right-0 pr-2.5 flex items-center space-x-1">
+                      <button
+                        type="button"
+                        id="btn-clear-mat-search"
+                        class="text-slate-400 hover:text-slate-600 text-xs p-1 hidden cursor-pointer"
+                        title="Bersihkan teks"
+                      >
+                        ✕
+                      </button>
+                      <button
+                        type="button"
+                        id="btn-toggle-mat-dropdown"
+                        class="text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                        title="Buka daftar material"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Dropdown Hasil Pencarian Material (Real-time Filter) -->
+                  <div
+                    id="trx-material-dropdown"
+                    class="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-40 max-h-64 overflow-y-auto hidden"
+                  >
+                    <div class="p-2.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between text-[11px] text-slate-500">
+                      <span id="trx-mat-result-count" class="font-medium">Memuat material...</span>
+                      <span class="text-[10px] text-slate-400">Tekan Enter atau klik untuk memilih</span>
+                    </div>
+                    <div id="trx-material-list" class="divide-y divide-slate-100">
+                      <!-- Diisi secara dinamis oleh JavaScript -->
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  Jumlah (Qty) *
+                </label>
+                <input type="number" id="trx-qty" step="any" min="0.01" required placeholder="Misal: 25" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
+                    Area Asal (Pengirim) *
+                  </label>
+                  <select id="trx-origin" required class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <!-- Diisi otomatis -->
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
+                    Area Tujuan (Penerima) *
+                  </label>
+                  <select id="trx-dest" required class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <!-- Diisi otomatis -->
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1.5 uppercase tracking-wider">
+                  Catatan / Referensi Dokumen (Opsional)
+                </label>
+                <textarea id="trx-note" rows="2" placeholder="Nomor Surat Jalan, Alasan Pengembalian, Keterangan Reject, dll." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"></textarea>
+              </div>
+
+              <div class="pt-2">
+                <button type="submit" id="btn-submit-trx" class="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white font-semibold rounded-lg text-sm transition shadow-sm cursor-pointer">
+                  Simpan Transaksi Material
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- ============================================== -->
+          <!-- 2. CONTAINER TRANSAKSI MASSAL (MULTI-ITEM)    -->
+          <!-- ============================================== -->
+          <div id="trx-bulk-container" class="hidden space-y-5">
+            <!-- Preset Cepat Transaksi Massal -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <span class="text-base">⚡</span>
+                  <span class="text-xs font-bold text-slate-800 uppercase tracking-wider">Preset Cepat Batch (Opsi Salin ke Semua Baris)</span>
+                </div>
+                <span class="text-[11px] text-slate-500 hidden sm:inline">Isi sekali, salin ke semua item sekaligus</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Area Asal Seragam</label>
+                  <select id="bulk-preset-origin" class="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <!-- Diisi otomatis -->
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Area Tujuan Seragam</label>
+                  <select id="bulk-preset-dest" class="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    <!-- Diisi otomatis -->
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-600 mb-1">Catatan / No. Dokumen / SJ</label>
+                  <input type="text" id="bulk-preset-note" placeholder="Misal: SJ-2026/09/001" class="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                </div>
+              </div>
+              <div class="flex justify-end pt-1">
+                <button
+                  type="button"
+                  id="btn-apply-bulk-preset"
+                  class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 rounded-lg text-xs font-bold transition cursor-pointer flex items-center space-x-1.5"
+                >
+                  <span>⚡</span>
+                  <span>Terapkan Preset ke Semua Baris</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Toolbar Baris Transaksi -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                  <span>Daftar Item Transaksi Massal</span>
+                  <span id="bulk-active-count-badge" class="px-2 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-800">2 Item</span>
+                </h3>
+                <p class="text-[11px] text-slate-500">Tambahkan beberapa perpindahan material sekaligus dalam satu kali proses.</p>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  id="btn-add-bulk-row"
+                  class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold transition cursor-pointer flex items-center space-x-1 shadow-2xs"
+                >
+                  <span>+</span>
+                  <span>Tambah Baris</span>
+                </button>
+                <button
+                  type="button"
+                  id="btn-add-bulk-3-rows"
+                  class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  +3 Baris
+                </button>
+                <button
+                  type="button"
+                  id="btn-clear-bulk-rows"
+                  class="px-2.5 py-1.5 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  title="Hapus semua atau reset"
+                >
+                  🗑️ Reset Baris
+                </button>
+              </div>
+            </div>
+
+            <!-- Container Dinamis Baris-Baris Item Massal -->
+            <div id="bulk-rows-container" class="space-y-3">
+              <!-- Di-render dinamis oleh JavaScript -->
+            </div>
+
+            <!-- Feedback Khusus Transaksi Massal -->
+            <div id="bulk-feedback" class="hidden"></div>
+
+            <!-- Ringkasan Batch & Tombol Simpan Massal -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div class="flex items-center space-x-4 text-xs">
+                <div>
+                  <span class="text-slate-500">Total Item:</span>
+                  <b id="bulk-summary-count" class="ml-1 text-slate-900 text-sm">0</b>
+                </div>
+                <div class="border-l border-slate-300 pl-4">
+                  <span class="text-slate-500">Total Qty:</span>
+                  <b id="bulk-summary-qty" class="ml-1 text-sky-700 text-sm">0</b>
+                </div>
+                <div class="border-l border-slate-300 pl-4 hidden md:block">
+                  <span class="text-slate-500">Penanggung Jawab:</span>
+                  <b id="bulk-summary-operator" class="ml-1 text-slate-800">-</b>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                id="btn-submit-bulk-trx"
+                class="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold rounded-lg text-sm transition shadow-sm cursor-pointer flex items-center justify-center space-x-2"
+              >
+                <span>💾</span>
+                <span>Proses & Simpan Semua Transaksi Massal</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 3: SALDO STOK -->
+        <section id="tab-stock" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Saldo Stok per Control Area</h2>
+              <p class="text-xs text-slate-500">Monitoring real-time kuantitas material di masing-masing area.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <select id="stock-filter-area" class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500">
+                <!-- Diisi otomatis -->
+              </select>
+              <input type="text" id="stock-search" placeholder="Cari nomor material / nama..." class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 w-52" />
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-slate-50 border-y border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  <th class="py-3 px-4">Stock Control Area</th>
+                  <th class="py-3 px-4">Kode Material</th>
+                  <th class="py-3 px-4">Nama Material</th>
+                  <th class="py-3 px-4">Saldo Qty</th>
+                  <th class="py-3 px-4">Satuan</th>
+                  <th class="py-3 px-4">Update Terakhir</th>
+                </tr>
+              </thead>
+              <tbody id="stock-table-body">
+                <!-- Diisi otomatis -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- TAB 4: RIWAYAT TRANSAKSI -->
+        <section id="tab-history" class="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">Riwayat Mutasi & Transaksi</h2>
+              <p class="text-xs text-slate-500">Semua aktivitas penerimaan, transfer, dan pengembalian tercatat lengkap.</p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="text" id="history-search" placeholder="Cari nomor/nama material, ID TRX, area..." class="px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 w-56" />
+              <button id="btn-export-csv" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer">
+                📥 Export CSV
+              </button>
+              <button id="btn-print-history" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition cursor-pointer">
+                🖨️ Cetak
+              </button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left">
+              <thead>
+                <tr class="bg-slate-50 border-y border-slate-200 text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  <th class="py-3 px-3">ID TRX</th>
+                  <th class="py-3 px-3">Material</th>
+                  <th class="py-3 px-3">Qty</th>
+                  <th class="py-3 px-3">Perpindahan Area</th>
+                  <th class="py-3 px-3">Catatan</th>
+                  <th class="py-3 px-3">Petugas</th>
+                  <th class="py-3 px-3">Waktu</th>
+                </tr>
+              </thead>
+              <tbody id="history-table-body">
+                <!-- Diisi otomatis -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </main>
+
+      <!-- Footer -->
+      <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-600">
+        Material Tracking System • Pure Vanilla Edition (Siap Pakai untuk GitHub Pages)
+      </footer>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- MODAL: PENGATURAN SUPABASE & SCRIPT SQL               -->
+    <!-- ===================================================== -->
+    <div id="config-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+      <div class="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-7 shadow-xl border border-slate-200 max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Pengaturan Supabase Database</h3>
+            <p class="text-xs text-slate-500">Tersimpan di browser lokal Anda (Tanpa perlu file .env)</p>
+          </div>
+          <button id="btn-close-config" class="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <div class="overflow-y-auto flex-1 space-y-4 pr-1 text-xs">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1 uppercase tracking-wider">Supabase Project URL</label>
+            <input type="text" id="cfg-supabase-url" placeholder="https://yourproject.supabase.co" class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-sky-500" />
+          </div>
+
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1 uppercase tracking-wider">Supabase Anon Key (Public Key)</label>
+            <input type="password" id="cfg-supabase-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-sky-500" />
+          </div>
+
+          <div id="cfg-test-status" class="hidden"></div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="font-semibold text-slate-700 uppercase tracking-wider">Script SQL Supabase</label>
+              <button id="btn-copy-sql" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[11px] cursor-pointer">
+                📋 Salin Script SQL
+              </button>
+            </div>
+            <p class="text-[11px] text-slate-500 mb-1.5">Jalankan script ini di menu "SQL Editor" Supabase untuk membuat tabel:</p>
+            <textarea id="cfg-sql-schema" readonly rows="6" class="w-full p-2.5 bg-slate-900 text-slate-100 font-mono text-[11px] rounded-lg border border-slate-800"></textarea>
+          </div>
+        </div>
+
+        <div class="pt-4 mt-2 border-t border-slate-100 flex items-center justify-end space-x-2">
+          <button onclick="closeConfigModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold cursor-pointer">
+            Tutup
+          </button>
+          <button id="btn-save-config" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold shadow-sm cursor-pointer">
+            Simpan & Uji Koneksi
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="./src/config.js"></script>
+    <script src="./src/app.js"></script>
+  </body>
+</html>
