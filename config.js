@@ -22,8 +22,8 @@ function getActiveSupabaseConfig() {
   const storedKey = (typeof window !== 'undefined' ? localStorage.getItem(SUPABASE_CONFIG.STORAGE_KEY_KEY) || '' : '').trim();
   
   return {
-    url: storedUrl || SUPABASE_CONFIG.DEFAULT_URL,
-    anonKey: storedKey || SUPABASE_CONFIG.DEFAULT_ANON_KEY
+    url: SUPABASE_CONFIG.DEFAULT_URL || storedurl,
+    anonKey: SUPABASE_CONFIG.DEFAULT_ANON_KEY || storedkey,
   };
 }
 
