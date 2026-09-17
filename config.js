@@ -4,10 +4,10 @@
 
 const SUPABASE_CONFIG = {
   // Masukkan URL Supabase Anda jika ingin hardcode (misal: 'https://xyzcompany.supabase.co')
-  DEFAULT_URL: '',
+  DEFAULT_URL: 'https://uwzhnzzpoprejcrbglxu.supabase.co',
   
   // Masukkan Anon Key Supabase Anda jika ingin hardcode
-  DEFAULT_ANON_KEY: '',
+  DEFAULT_ANON_KEY: 'sb_publishable_Fm9-W8tP7inInV5SYC2r9g_yFpX23Pc',
   
   // Kunci penyimpanan localStorage browser
   STORAGE_KEY_URL: 'stk_supabase_url',
