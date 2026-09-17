@@ -7,7 +7,7 @@ const SUPABASE_CONFIG = {
   DEFAULT_URL: 'https://uwzhnzzpoprejcrbglxu.supabase.co',
   
   // Masukkan Anon Key Supabase Anda jika ingin hardcode
-  DEFAULT_ANON_KEY: 'sb_publishable_Fm9-W8tP7inInV5SYC2r9g_yFpX23Pc',
+  DEFAULT_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3emhuenpwb3ByZWpjcmJnbHh1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2Mjk1MTksImV4cCI6MjEwNTIwNTUxOX0.G_dGOL0VQFg0zvdFwG6chCjBq3cKnGFVjSuTCtZX_OY',
   
   // Kunci penyimpanan localStorage browser
   STORAGE_KEY_URL: 'stk_supabase_url',
